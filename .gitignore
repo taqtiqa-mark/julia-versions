@@ -1,1 +1,5 @@
+.orig
 /pkg/
+
+# VS Code settings
+.vscode

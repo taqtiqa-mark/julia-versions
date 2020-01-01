@@ -1,41 +1,26 @@
 #!/usr/bin/env bash
 
 set -e
+[ -n "$JLENV_DEBUG" ] && set -x
 
 if [[ ! $# -eq 2 ]]; then
-	echo "usage: $0 [ruby|mruby|jruby|rubinius|truffleruby] [VERSION]"
+	echo "usage: $0 [julia] [VERSION]"
+	echo 'update.sh julia 1.3.1'
 	exit 1
 fi
 
-ruby="$1"
+julia="$1"
 version="$2"
 dest="pkg"
 
-case "$ruby" in
-	ruby)
-		version_family="${version:0:3}"
-
-		exts=(tar.gz tar.bz2 tar.xz zip)
-		downloads_url="https://cache.ruby-lang.org/pub/ruby"
-		;;
-	mruby)
-		exts=(tar.gz zip)
-		downloads_url="https://github.com/mruby/mruby/archive"
-		;;
-	jruby)
-		exts=(tar.gz zip)
-		downloads_url="https://s3.amazonaws.com/jruby.org/downloads"
-		;;
-	rubinius)
-		exts=(tar.bz2)
-		downloads_url="https://rubinius-releases-rubinius-com.s3.amazonaws.com"
-		;;
-	truffleruby)
-		exts=(linux-amd64.tar.gz macos-amd64.tar.gz)
-		downloads_url="https://github.com/oracle/truffleruby/releases/download"
+case "$julia" in
+	julia)
+		version_family="v${version}"
+		exts=(tar.gz)
+		downloads_url="https://github.com/JuliaLang/julia/releases/download"
 		;;
 	*)
-		echo "$0: unknown ruby: $ruby" >&2
+		echo "$0: unknown julia: $julia" >&2
 		exit 1
 		;;
 esac
@@ -44,26 +29,18 @@ mkdir -p "$dest"
 pushd "$dest" >/dev/null
 
 for ext in "${exts[@]}"; do
-	case "$ruby" in
-		ruby)
-			archive="ruby-${version}.${ext}"
+	case "$julia" in
+		julia)
+		  #/v1.3.0-rc5/julia-1.3.0-rc5.tar.gz
+			archive="julia-${version}.${ext}"
 			url="$downloads_url/$version_family/$archive"
+		  #/v1.3.0-rc5/julia-1.3.0-rc5-full.tar.gz
+			archive_full="julia-${version}-full.${ext}"
+			url_full="$downloads_url/$version_family/$archive_full"
 			;;
-		mruby)
-			archive="mruby-${version}.${ext}"
-			url="$downloads_url/$version/$archive"
-			;;
-		jruby)
-			archive="jruby-bin-${version}.${ext}"
-			url="$downloads_url/$version/$archive"
-			;;
-		rubinius)
-			archive="rubinius-${version}.${ext}"
-			url="$downloads_url/$archive"
-			;;
-		truffleruby)
-			archive="truffleruby-${version}-${ext}"
-			url="$downloads_url/vm-$version/$archive"
+		*)
+			echo 'Unknown Julia.'
+			exit 1
 			;;
 	esac
 
@@ -72,16 +49,36 @@ for ext in "${exts[@]}"; do
 	else
 		wget -O "$archive" "$url"
 	fi
+	if [ -f "${archive}.asc" ]; then
+		echo "Already downloaded ${archive}.asc"
+	else
+		wget -O "${archive}.asc" "${url}.asc"
+	fi
+	if [ -f "$archive_full" ]; then
+		echo "Already downloaded $archive_full"
+	else
+		wget -O "$archive_full" "$url_full"
+	fi
+	if [ -f "${archive_full}.asc" ]; then
+		echo "Already downloaded ${archive_full}.asc"
+	else
+		wget -O "${archive_full}.asc" "${url_full}.asc"
+	fi
 
-	for algorithm in md5 sha1 sha256 sha512; do
-		${algorithm}sum "$archive" >> "../$ruby/checksums.$algorithm"
+	for algorithm in gpg; do
+		echo "1  $archive" >> "../$julia/signatures.$algorithm"
+		echo "1  $archive_full" >> "../$julia/signatures.$algorithm"
+		mv "${archive}.asc" "../julia/signatures/${archive}.asc"
+		mv "${archive_full}.asc" "../julia/signatures/${archive_full}.asc"
 	done
 done
 
-echo "$version" >> "../$ruby/versions.txt"
+echo "$version" >> "../$julia/versions.txt"
 
-if [[ $(wc -l < "../$ruby/stable.txt") == "1" ]]; then
-	echo "$version" > "../$ruby/stable.txt"
-fi
+echo '=========================================================='
+echo '='
+echo '= Please manually update stable.txt'
+echo '='
+echo '=========================================================='
 
 popd >/dev/null
